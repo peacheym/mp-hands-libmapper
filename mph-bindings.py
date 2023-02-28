@@ -1,15 +1,31 @@
+#!/usr/bin/python3
+
 import cv2
 import mediapipe as mp
+import argparse
+
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
+# Handle ArgParse
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--max-hands", default=2, help="Maximum number of hands tracked by MediaPipe")
+parser.add_argument("--model-complexity", default=0, help="Model complexity (0 or 1). 0 is better inference performance whereas 1 is better model accuracy")
+parser.add_argument("--min-detection-confidence", default=0.5, help="Minimum confidence required by the ML model to detect a landmark")
+parser.add_argument("--min-tracking-confidence", default=0.5, help="Minimum confidence required by the ML model to track a landmark")
+
+
+args = parser.parse_args()
+
 # For webcam input:
 cap = cv2.VideoCapture(0)
 with mp_hands.Hands(
-    model_complexity=0,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5) as hands:
+    model_complexity=int(args.model_complexity),
+    min_detection_confidence=float(args.min_detection_confidence),
+    min_tracking_confidence=float(args.min_tracking_confidence),
+    max_num_hands=int(args.max_hands)) as hands:
     
   while cap.isOpened():
     success, image = cap.read()
@@ -17,7 +33,7 @@ with mp_hands.Hands(
       print("Ignoring empty camera frame.")
       # If loading a video, use 'break' instead of 'continue'.
       continue
-
+0
     # To improve performance, optionally mark the image as not writeable to
     # pass by reference.
     image.flags.writeable = False
