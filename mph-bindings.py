@@ -9,11 +9,6 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
-def get_landmark_index():
-  # Todo: Ensure this function always returns the correct index for the joint's being estimated
-  return 8
-
-
 class MPRunner:
   def __init__(self, dev_name, joint_type, model_complexity, min_detection_confidence, min_tracking_confidence, max_hands):
     # Set class members
@@ -27,16 +22,16 @@ class MPRunner:
   def _setup_libmapper(self):
     # Handle libmapper setup  
     self.dev = mpr.Device(self.dev_name)
-    self.thumb = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Thumb"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.index = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Index"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.middle = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Middle"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.ring = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Ring"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.pinky = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Pinky"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.wrist = self.dev.add_signal(mpr.Direction.OUTGOING, "Wrist", 3, mpr.Type.FLOAT, None, 0, 1)
-    
+    self.signals = {}
+    self.signals["thumb"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Thumb"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["index"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Index"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["middle"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Middle"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["ring"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Ring"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["pinky"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Pinky"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["wrist"] = self.dev.add_signal(mpr.Direction.OUTGOING, "Wrist", 3, mpr.Type.FLOAT, None, 0, 1)
     
   def format_sig_name(self, name):
-    joint = str(args.joint_type)
+    joint = self.joint_type
     if name == "Thumb":
       joint = self.convert_joint_names()
     return name + "_{}".format(joint.upper())
@@ -50,6 +45,13 @@ class MPRunner:
       return "MCP"
     if self.joint_type == "mcp":
       return "CMC"
+    
+  def get_landmark_index(self, finger_name):
+    if finger_name == "wrist":
+      return 0 # Special case for wrist
+    else:
+      # Todo: Ensure this function always returns the correct index for the joint's being estimated
+      return 8
   
   def poll(self):
     self.dev.poll()
@@ -93,9 +95,11 @@ class MPRunner:
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
             
+            
             # TODO: Update libmapper signals here, based on landmark index
-            lm = hand_landmarks.landmark[get_landmark_index()]
-            self.index.set_value([lm.x, lm.y, lm.z])
+            for _, (k, v) in enumerate(self.signals.items()):
+              lm = hand_landmarks.landmark[self.get_landmark_index(k)]
+              v.set_value([lm.x, lm.y, lm.z])
             
         # Flip the image horizontally for a selfie-view display.
         cv2.imshow('libmapper + MediaPipe Hands', cv2.flip(image, 1))
