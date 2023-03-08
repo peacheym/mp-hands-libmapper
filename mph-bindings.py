@@ -10,6 +10,10 @@ mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
 class MPRunner:
+  """
+  This class is responsible for the running the web-cam, mediapipe pose estimation, libmapper signal initialization & updates, etc.
+  
+  """
   def __init__(self, dev_name, joint_type, model_complexity, min_detection_confidence, min_tracking_confidence, max_hands):
     # Set class members
     self.dev_name = dev_name
@@ -18,6 +22,7 @@ class MPRunner:
     self.min_detection_confidence = min_detection_confidence
     self.min_tracking_confidence = min_tracking_confidence
     self.max_hands = max_hands
+    self.joints = ["mcp", "pip", "dip", "tip"]
     
   def _setup_libmapper(self):
     # Handle libmapper setup  
@@ -46,12 +51,11 @@ class MPRunner:
     if self.joint_type == "mcp":
       return "CMC"
     
-  def get_landmark_index(self, finger_name):
-    if finger_name == "wrist":
+  def get_landmark_index(self, finger_index):
+    if finger_index == 0:
       return 0 # Special case for wrist
     else:
-      # Todo: Ensure this function always returns the correct index for the joint's being estimated
-      return 8
+      return 4 * (finger_index-1) + self.joints.index(self.joint_type) + 1
   
   def poll(self):
     self.dev.poll()
@@ -94,13 +98,11 @@ class MPRunner:
                 mp_hands.HAND_CONNECTIONS,
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
-            
-            
-            # TODO: Update libmapper signals here, based on landmark index
-            for _, (k, v) in enumerate(self.signals.items()):
-              lm = hand_landmarks.landmark[self.get_landmark_index(k)]
-              v.set_value([lm.x, lm.y, lm.z])
-            
+                        
+            for i, (k, v) in enumerate(self.signals.items()): # For every signal
+              lm = hand_landmarks.landmark[self.get_landmark_index(i)] # Compute which landmark to fetch estimations from
+              v.set_value([lm.x, lm.y, lm.z]) # Update signals x,y,z components.
+
         # Flip the image horizontally for a selfie-view display.
         cv2.imshow('libmapper + MediaPipe Hands', cv2.flip(image, 1))
         if cv2.waitKey(5) & 0xFF == 27:
@@ -116,11 +118,9 @@ parser.add_argument("--max-hands", default=2, help="Maximum number of hands trac
 parser.add_argument("--model-complexity", default=0, help="Model complexity (0 or 1). 0 is better inference performance whereas 1 is better model accuracy")
 parser.add_argument("--min-detection-confidence", default=0.5, help="Minimum confidence required by the ML model to detect a landmark")
 parser.add_argument("--min-tracking-confidence", default=0.5, help="Minimum confidence required by the ML model to track a landmark")
-
-parser.add_argument("--joint-type", default="tip", choices=["mcp", "pip", "dip", "tip", "all"], help="Determine which joints to report, per finger (other than thumb). ")
+parser.add_argument("--joint-type", default="tip", choices=["mcp", "pip", "dip", "tip"] , help="Determine which joints to report, per finger (other than thumb). ")
 
 args = parser.parse_args()
-
 
 runner = MPRunner("MPHands", args.joint_type, args.model_complexity, args.min_detection_confidence, args.min_tracking_confidence, args.max_hands)
 runner.run_mp()
