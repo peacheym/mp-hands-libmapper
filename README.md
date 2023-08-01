@@ -2,6 +2,9 @@
 
 This repo presents a proper binding between libmapper and MediaPipe: Hands.
 
+![mph_v](https://github.com/peacheym/mp-hands-libmapper/assets/15327742/e963c1a1-f4f2-438c-93fc-e29749e0eb43)
+
+
 ## Installation
 
 To use the binding scripts found in this repo, you'll need to install the following PIP packages.
