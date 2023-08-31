@@ -21,7 +21,7 @@ To initalize the bindings, run the binding script:
 ./mph-bindings.py
 ```
 
-You can add flags to change the behaviour of the script. For example, `./mph-bindings.py --max-hands X`, where `X` is an integer will set the amount of hands that mediapipe will track at once.
+You can add flags to change the behavior of the script. For example, `./mph-bindings.py --max-hands X`, where `X` is an integer will set the amount of hands that mediapipe will track at once.
 
 ```bash
 ./mph-bindings.py --help

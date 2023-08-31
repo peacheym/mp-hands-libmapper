@@ -26,20 +26,22 @@ class MPRunner:
     
   def _setup_libmapper(self):
     # Handle libmapper setup  
-    self.dev = mpr.Device(self.dev_name)
+    graph = mpr.Graph()
+    # graph.set_interface("wlp0s20f3") 
+    self.dev = mpr.Device(self.dev_name, graph)
     self.signals = {}
+    self.signals["wrist"] = self.dev.add_signal(mpr.Direction.OUTGOING, "Wrist", 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["thumb"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Thumb"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["index"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Index"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["middle"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Middle"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["ring"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Ring"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["pinky"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Pinky"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.signals["wrist"] = self.dev.add_signal(mpr.Direction.OUTGOING, "Wrist", 3, mpr.Type.FLOAT, None, 0, 1)
     
   def format_sig_name(self, name):
     joint = self.joint_type
     if name == "Thumb":
       joint = self.convert_joint_names()
-    return name + "_{}".format(joint.upper())
+    return name + "{}".format(joint.upper())
     
   def convert_joint_names(self):
     if self.joint_type == "tip":
@@ -98,9 +100,11 @@ class MPRunner:
                 mp_hands.HAND_CONNECTIONS,
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
+            
                         
             for i, (k, v) in enumerate(self.signals.items()): # For every signal
               lm = hand_landmarks.landmark[self.get_landmark_index(i)] # Compute which landmark to fetch estimations from
+              # print(v.get_property("name"), self.get_landmark_index(i))
               v.set_value([lm.x, lm.y, lm.z]) # Update signals x,y,z components.
 
         # Flip the image horizontally for a selfie-view display.
