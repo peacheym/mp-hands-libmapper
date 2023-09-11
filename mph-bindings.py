@@ -4,10 +4,19 @@ import cv2
 import mediapipe as mp
 import libmapper as mpr
 import argparse
+import signal
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
+done = False
+
+def handler_done(signum, frame):
+    global done
+    done = True
+
+signal.signal(signal.SIGINT, handler_done)
+signal.signal(signal.SIGTERM, handler_done)
 
 class MPRunner:
   """
@@ -73,7 +82,7 @@ class MPRunner:
         min_tracking_confidence=float(self.min_tracking_confidence),
         max_num_hands=int(self.max_hands)) as hands:
         
-      while cap.isOpened():
+      while not done and cap.isOpened():
           
         self.poll()
           
@@ -113,6 +122,7 @@ class MPRunner:
           break
   
     cap.release()
+    self.dev.free()
     
     
 # Handle ArgParse
