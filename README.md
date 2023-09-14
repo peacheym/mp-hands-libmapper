@@ -2,7 +2,7 @@
 
 This repo presents a binding between libmapper and MediaPipe: Hands in order to use pose-estimation of hand-tracking data as an input controller to multi-media systems supported within the libmapper ecosystem.
 
-![Screenshot from 2023-07-31 16-30-02](https://github.com/peacheym/mp-hands-libmapper/assets/15327742/2cb06fcf-7aea-44b7-887c-7d510e4fdf92)
+![demo](https://github.com/peacheym/mp-hands-libmapper/assets/15327742/c0add691-f3b8-4706-96e8-3c6e46bb2aed)
 
 ## Installation
 
