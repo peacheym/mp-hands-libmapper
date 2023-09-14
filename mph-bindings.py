@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import cv2
+import numpy as np
 import mediapipe as mp
 import libmapper as mpr
 import argparse
@@ -45,6 +46,7 @@ class MPRunner:
     self.signals["middle"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Middle"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["ring"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Ring"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["pinky"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Pinky"), 3, mpr.Type.FLOAT, None, 0, 1)
+    self.signals["Plane"] = self.dev.add_signal(mpr.Direction.OUTGOING, "Plane", 1, mpr.Type.FLOAT, None, -1, 1)
     
   def format_sig_name(self, name):
     joint = self.joint_type
@@ -101,6 +103,9 @@ class MPRunner:
         # Draw the hand annotations on the image.
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+  
+        image_rows, image_cols, _ = image.shape
+        
         if results.multi_hand_landmarks:
           for hand_landmarks in results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(
@@ -109,9 +114,15 @@ class MPRunner:
                 mp_hands.HAND_CONNECTIONS,
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
-            
-                        
+  
+            tl, br = self.find_plane_corners(hand_landmarks, image_cols, image_rows)
+            self.signals["Plane"].set_value(self.compute_rpy(self.compute_plane(hand_landmarks.landmark)))
+            # self.compute_palm_plane(hand_landmarks.landmark)
+            cv2.rectangle(image, tl, br, (54, 200, 219), 4)
+                                    
             for i, (k, v) in enumerate(self.signals.items()): # For every signal
+              if k == "Plane":
+                continue
               lm = hand_landmarks.landmark[self.get_landmark_index(i)] # Compute which landmark to fetch estimations from
               # print(v.get_property("name"), self.get_landmark_index(i))
               v.set_value([lm.x, lm.y, lm.z]) # Update signals x,y,z components.
@@ -123,6 +134,40 @@ class MPRunner:
   
     cap.release()
     self.dev.free()
+    
+  def compute_plane(self, lm):
+    A = np.asarray([lm[0].x, lm[0].y, lm[0].z])
+    B = np.asarray([lm[5].x, lm[5].y, lm[5].z])
+    C = np.asarray([lm[17].x, lm[17].y, lm[17].z])
+    
+    cross = np.cross(B-A, C-A)
+    
+    return cross/np.linalg.norm(cross) # This is the unit vector of the plane
+  
+  def compute_rpy(self, plane):
+    """
+    This function should compute the Roll, Pitch, and Yaw of a plane in 3D space.
+    
+    Todo: fix.
+    """
+    pitch = np.arcsin(plane[1])
+    # rx = np.arcsin(plane[0]/np.cos(ry))
+    # rz = np.arcsin(plane[2])
+
+    return pitch.item()
+    
+  def find_plane_corners(self, hand_landmarks, image_cols, image_rows):
+    lm = hand_landmarks.landmark
+    min_x, max_x = min([lm[0].x, lm[1].x, lm[5].x, lm[17].x]), max([lm[0].x, lm[1].x, lm[5].x, lm[17].x])
+    min_y, max_y = min([lm[0].y, lm[1].y, lm[5].y, lm[17].y]), max([lm[0].y, lm[1].y, lm[5].y, lm[17].y])
+
+    tl = mp_drawing._normalized_to_pixel_coordinates(min_x, min_y,
+                                                   image_cols, image_rows)
+  
+    br = mp_drawing._normalized_to_pixel_coordinates(max_x, max_y,
+                                                   image_cols, image_rows)
+            
+    return tl, br
     
     
 # Handle ArgParse
