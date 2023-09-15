@@ -24,7 +24,7 @@ class MPRunner:
   This class is responsible for the running the web-cam, mediapipe pose estimation, libmapper signal initialization & updates, etc.
   
   """
-  def __init__(self, dev_name, joint_type, model_complexity, min_detection_confidence, min_tracking_confidence, max_hands):
+  def __init__(self, dev_name, joint_type, model_complexity, min_detection_confidence, min_tracking_confidence, max_hands, palm_viz):
     # Set class members
     self.dev_name = dev_name
     self.joint_type = joint_type
@@ -33,6 +33,7 @@ class MPRunner:
     self.min_tracking_confidence = min_tracking_confidence
     self.max_hands = max_hands
     self.joints = ["mcp", "pip", "dip", "tip"]
+    self.palm_viz = palm_viz
     
   def _setup_libmapper(self):
     # Handle libmapper setup  
@@ -46,7 +47,7 @@ class MPRunner:
     self.signals["middle"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Middle"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["ring"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Ring"), 3, mpr.Type.FLOAT, None, 0, 1)
     self.signals["pinky"] = self.dev.add_signal(mpr.Direction.OUTGOING, self.format_sig_name("Pinky"), 3, mpr.Type.FLOAT, None, 0, 1)
-    self.signals["Plane"] = self.dev.add_signal(mpr.Direction.OUTGOING, "Plane", 1, mpr.Type.FLOAT, None, -1, 1)
+    self.signals["PalmRotation"] = self.dev.add_signal(mpr.Direction.OUTGOING, "PalmRotation", 3, mpr.Type.FLOAT, None, -1, 1) # Todo: double check that -1 to 1 is the actual min/max.
     
   def format_sig_name(self, name):
     joint = self.joint_type
@@ -103,9 +104,7 @@ class MPRunner:
         # Draw the hand annotations on the image.
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-  
-        image_rows, image_cols, _ = image.shape
-        
+                
         if results.multi_hand_landmarks:
           for hand_landmarks in results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(
@@ -114,14 +113,16 @@ class MPRunner:
                 mp_hands.HAND_CONNECTIONS,
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
-  
-            tl, br = self.find_plane_corners(hand_landmarks, image_cols, image_rows)
-            self.signals["Plane"].set_value(self.compute_rpy(self.compute_plane(hand_landmarks.landmark)))
+
+
+            if self.palm_viz:
+              self.draw_palm_box(image, hand_landmarks)
+            
+            self.signals["PalmRotation"].set_value(self.compute_plane_rotation(hand_landmarks.landmark))
             # self.compute_palm_plane(hand_landmarks.landmark)
-            cv2.rectangle(image, tl, br, (54, 200, 219), 4)
                                     
             for i, (k, v) in enumerate(self.signals.items()): # For every signal
-              if k == "Plane":
+              if k == "PalmRotation":
                 continue
               lm = hand_landmarks.landmark[self.get_landmark_index(i)] # Compute which landmark to fetch estimations from
               # print(v.get_property("name"), self.get_landmark_index(i))
@@ -135,40 +136,36 @@ class MPRunner:
     cap.release()
     self.dev.free()
     
-  def compute_plane(self, lm):
+  def compute_plane_rotation(self, lm):
+    """
+    Formula found here: https://math.stackexchange.com/questions/2249307/orientation-of-a-3d-plane-using-three-points
+    """
     A = np.asarray([lm[0].x, lm[0].y, lm[0].z])
     B = np.asarray([lm[5].x, lm[5].y, lm[5].z])
     C = np.asarray([lm[17].x, lm[17].y, lm[17].z])
     
     cross = np.cross(B-A, C-A)
     
-    return cross/np.linalg.norm(cross) # This is the unit vector of the plane
-  
-  def compute_rpy(self, plane):
-    """
-    This function should compute the Roll, Pitch, and Yaw of a plane in 3D space.
+    U = cross/np.linalg.norm(cross) # This is the unit vector of the plane
     
-    Todo: fix.
-    """
-    pitch = np.arcsin(plane[1])
-    # rx = np.arcsin(plane[0]/np.cos(ry))
-    # rz = np.arcsin(plane[2])
+    return np.arcsin(U) # Return all angles
 
-    return pitch.item()
-    
   def find_plane_corners(self, hand_landmarks, image_cols, image_rows):
     lm = hand_landmarks.landmark
-    min_x, max_x = min([lm[0].x, lm[1].x, lm[5].x, lm[17].x]), max([lm[0].x, lm[1].x, lm[5].x, lm[17].x])
-    min_y, max_y = min([lm[0].y, lm[1].y, lm[5].y, lm[17].y]), max([lm[0].y, lm[1].y, lm[5].y, lm[17].y])
+    min_x, max_x = min([lm[0].x, lm[5].x, lm[17].x]), max([lm[0].x, lm[5].x, lm[17].x])
+    min_y, max_y = min([lm[0].y, lm[5].y, lm[17].y]), max([lm[0].y, lm[5].y, lm[17].y])
 
     tl = mp_drawing._normalized_to_pixel_coordinates(min_x, min_y,
                                                    image_cols, image_rows)
   
     br = mp_drawing._normalized_to_pixel_coordinates(max_x, max_y,
                                                    image_cols, image_rows)
-            
     return tl, br
-    
+  
+  def draw_palm_box(self, image, landmarks,):
+    image_rows, image_cols, _ = image.shape
+    tl, br = self.find_plane_corners(landmarks, image_cols, image_rows)
+    cv2.rectangle(image, tl, br, (54, 200, 219), 4)
     
 # Handle ArgParse
 parser = argparse.ArgumentParser()
@@ -178,8 +175,10 @@ parser.add_argument("--model-complexity", default=0, help="Model complexity (0 o
 parser.add_argument("--min-detection-confidence", default=0.5, help="Minimum confidence required by the ML model to detect a landmark")
 parser.add_argument("--min-tracking-confidence", default=0.5, help="Minimum confidence required by the ML model to track a landmark")
 parser.add_argument("--joint-type", default="tip", choices=["mcp", "pip", "dip", "tip"] , help="Determine which joints to report, per finger (other than thumb). ")
+parser.add_argument("--palm-viz", default=False, help="Determine whether or not to display a border-box containing the palm")
+
 
 args = parser.parse_args()
 
-runner = MPRunner("MPHands", args.joint_type, args.model_complexity, args.min_detection_confidence, args.min_tracking_confidence, args.max_hands)
+runner = MPRunner("MPHands", args.joint_type, args.model_complexity, args.min_detection_confidence, args.min_tracking_confidence, args.max_hands, args.palm_viz)
 runner.run_mp()
